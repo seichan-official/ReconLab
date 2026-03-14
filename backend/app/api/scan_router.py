@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import subprocess
 
@@ -10,7 +10,8 @@ class ScanRequest(BaseModel):
 
 
 @router.post("/scan")
-# ターゲット
+
+# ターゲット入力
 def start_scan(request: ScanRequest):
 
     raw = run_nmap(request.target)
@@ -24,14 +25,25 @@ def start_scan(request: ScanRequest):
 
 # スキャン開始
 def run_nmap(target: str):
-
+  try:
     result = subprocess.run(
         ["nmap", "-F", "-sV", "-sC", target],
         capture_output=True,
-        text=True
+        text=True,
+        timeout=120
     )
-
-    return result.stdout
+  # タイムアウトエラー
+  except subprocess.TimeoutExpired:
+    raise HTTPException(
+        status_code=504,
+        detail="nmap scan timeout"
+    )
+  # スキャン失敗
+  if result.returncode != 0:
+    raise HTTPException(
+    status_code=500,
+    detail="nmap scan failed"
+  )
 
 # json形式に変換
 def parse_nmap(output: str):
@@ -43,7 +55,10 @@ def parse_nmap(output: str):
         if "/tcp" in line or "/udp" in line:
 
             parts = line.split()
-
+            
+            if len(parts) < 3:
+              continue
+            
             port_proto = parts[0]
             state = parts[1]
             service = parts[2]
