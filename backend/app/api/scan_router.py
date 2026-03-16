@@ -44,6 +44,7 @@ def run_nmap(target: str):
     status_code=500,
     detail="nmap scan failed"
   )
+  return result.stdout
 
 # json形式に変換
 def parse_nmap(output: str):
